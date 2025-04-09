@@ -120,7 +120,7 @@
 
         try {
           const addr = toChecksumAddress(addrRaw);
-          const res = await fetch(`https://const res = await fetch(`https://wavex.vercel.app/api/proxy?address=${addr}`);
+          const res = await fetch(`https://wavex.vercel.app/api/proxy?address=${addr}`);
           const json = await res.json();
           const count = json.data.length;
           const eligible = count > 10;
