@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>WaveX 空投资格批量查询</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 960px;
+      margin: auto;
+      padding: 30px;
+      background: #f9f9f9;
+    }
+    textarea {
+      width: 100%;
+      height: 140px;
+      padding: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 15px;
+      background: #4caf50;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      min-width: 800px;
+      width: 100%;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    th {
+      background: #eee;
+    }
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+    .success { background-color: #e8f5e9; }
+    .fail { background-color: #fce4e4; }
+    .summary {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🔎 WaveX 空投资格批量查询</h2>
+  <p>每行一个钱包地址：</p>
+  <textarea id="input" placeholder="0x1234..."></textarea><br>
+  <button onclick="check()" id="checkBtn">开始查询</button>
+  <button onclick="exportCSV()">导出 CSV</button>
+
+  <div class="summary" id="qualifiedCount"></div>
+
+  <div class="table-wrapper">
+    <table id="resultTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>序号</th>
+          <th>钱包地址</th>
+          <th>是否符合</th>
+          <th>哈希数</th>
+        </tr>
+      </thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+  <script>
+    function toChecksumAddress(address) {
+      return window.Web3.utils.toChecksumAddress(address.toLowerCase());
+    }
+
+    async function check() {
+      const input = document.getElementById('input').value.trim();
+      const addresses = input.split('\n').map(x => x.trim()).filter(Boolean);
+      if (!addresses.length) return alert("请输入地址");
+
+      const btn = document.getElementById('checkBtn');
+      const table = document.getElementById('resultTable');
+      const tbody = document.getElementById('resultBody');
+      const qualifiedDiv = document.getElementById('qualifiedCount');
+
+      table.style.display = "table";
+      tbody.innerHTML = "";
+      btn.disabled = true;
+      btn.innerText = "查询中...";
+      qualifiedDiv.innerText = "";
+
+      let qualifiedTotal = 0;
+
+      for (let i = 0; i < addresses.length; i++) {
+        const addrRaw = addresses[i];
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${i + 1}</td><td>${addrRaw}</td><td colspan="2">⏳ 查询中...</td>`;
+        tbody.appendChild(row);
+
+        try {
+          const addr = toChecksumAddress(addrRaw);
+          const res = await fetch(`https://wavex.vercel.app/api/proxy?address=${addr}`);
+          const json = await res.json();
+          const count = json.data.length;
+          const eligible = count > 10;
+
+          if (eligible) qualifiedTotal++;
+
+          row.className = eligible ? "success" : "fail";
+          row.innerHTML = `
+            <td>${i + 1}</td>
+            <td>${addr}</td>
+            <td>${eligible ? "✅ 符合资格" : "❌ 不符合"}</td>
+            <td>${count}</td>
+          `;
+        } catch (err) {
+          row.className = "fail";
+          row.innerHTML = `<td>${i + 1}</td><td>${addrRaw}</td><td colspan="2">❌ 查询失败</td>`;
+        }
+      }
+
+      qualifiedDiv.innerText = `✅ 符合资格地址数：${qualifiedTotal} / ${addresses.length}`;
+      btn.disabled = false;
+      btn.innerText = "开始查询";
+    }
+
+    function exportCSV() {
+      const rows = Array.from(document.querySelectorAll("#resultTable tbody tr"));
+      if (!rows.length) return alert("请先查询");
+
+      let csv = "序号,钱包地址,是否符合,哈希数\n";
+      rows.forEach(row => {
+        const cols = row.querySelectorAll("td");
+        const line = Array.from(cols).map(td => `"${td.innerText}"`).join(",");
+        csv += line + "\n";
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "wavex_eligibility.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+
+</body>
+</html>
